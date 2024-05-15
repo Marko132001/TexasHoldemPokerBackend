@@ -281,14 +281,11 @@ class Game() {
     fun assignChipsToWinner(winners: MutableList<Player>) {
         val splitPot = potAmount / winners.size
         val leftoverChips = potAmount % winners.size
+        //TODO: Leftover chips logic
         winners.forEach {
             player ->
                 player.playerState = PlayerState.WINNER
                 player.assignChips(splitPot)
-        }
-
-        if(leftoverChips > 0){
-            players[getPlayerRolePosition(dealerButtonPos)].assignChips(leftoverChips)
         }
     }
 

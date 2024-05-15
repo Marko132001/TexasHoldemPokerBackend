@@ -1,5 +1,6 @@
 package com.backend.model
 
+import ch.qos.logback.core.net.server.Client
 import com.backend.data.GameRound
 import com.backend.gamelogic.Game
 import com.backend.gamelogic.LOGGER
@@ -21,7 +22,7 @@ import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
 
 class GameModel() {
-    private val state = MutableStateFlow(GameState())
+    private val gameState = MutableStateFlow(GameState())
 
     companion object {
         val game: Game = Game()
@@ -35,7 +36,7 @@ class GameModel() {
     private lateinit var round: GameRound
 
     init {
-        state.onEach(::broadcast).launchIn(gameScope)
+        gameState.onEach(::broadcast).launchIn(gameScope)
         println("INIT BLOCK")
     }
 
@@ -72,7 +73,7 @@ class GameModel() {
         playerSockets.remove(player.username)
         println("PLAYER ${player.username} DISCONNECTED")
         println("NUMBER OF PLAYERS ${game.players.size}")
-        state.update { currentState ->
+        gameState.update { currentState ->
             currentState.copy(
                 players = game.players
             )
@@ -86,14 +87,27 @@ class GameModel() {
                 Json.encodeToString(state)
             )
         }
+
+        delayGameJob = gameScope.launch {
+            delay(10500)
+            delayGameJob?.cancel()
+
+            if(state.isCheckEnabled){
+                handleCheckAction()
+            }
+            else{
+                handleFoldAction()
+            }
+        }
     }
 
     private fun resetGame() {
+        delayGameJob?.cancel()
         round = GameRound.PREFLOP
 
         game.preflopRoundInit()
 
-        state.update { currentState ->
+        gameState.update { currentState ->
             currentState.copy(
                 round = round,
                 potAmount = game.potAmount,
@@ -120,7 +134,7 @@ class GameModel() {
             round = nextRound
             game.assignChipsToWinner(game.rankCardHands())
 
-            state.update { currentState ->
+            gameState.update { currentState ->
                 currentState.copy(
                     round = round,
                     communityCards = game.showStreet(round).map { it.cardLabel }
@@ -137,7 +151,7 @@ class GameModel() {
         else if(nextRound != round) {
             round = nextRound
 
-            state.update { currentState ->
+            gameState.update { currentState ->
                 currentState.copy(
                     round = round,
                     communityCards = game.showStreet(round).map { it.cardLabel },
@@ -147,21 +161,10 @@ class GameModel() {
         }
 
         updateAvailableActions()
-//        if(round != GameRound.SHOWDOWN){
-//            delayGameJob = gameScope.launch {
-//                timerCountdown()
-//                if(state.value.isCheckEnabled) {
-//                    handleCheckAction()
-//                }
-//                else{
-//                    handleFoldAction()
-//                }
-//            }
-//        }
     }
 
     private fun updateAvailableActions() {
-        state.update { currentState ->
+        gameState.update { currentState ->
             currentState.copy(
                 potAmount = game.potAmount,
                 players = game.players,
@@ -208,11 +211,4 @@ class GameModel() {
 
         updateBettingRound()
     }
-
-//    private suspend fun timerCountdown() {
-//        for (i in 100 downTo 0) {
-//            timerProgress = i.toFloat() / 100
-//            delay(100)
-//        }
-//    }
 }
