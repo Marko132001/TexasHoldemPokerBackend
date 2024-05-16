@@ -71,8 +71,10 @@ class GameModel() {
     fun disconnectPlayer(player: Player) {
         game.players.remove(player)
         playerSockets.remove(player.username)
+
         println("PLAYER ${player.username} DISCONNECTED")
         println("NUMBER OF PLAYERS ${game.players.size}")
+
         gameState.update { currentState ->
             currentState.copy(
                 players = game.players
@@ -88,21 +90,14 @@ class GameModel() {
             )
         }
 
-        delayGameJob = gameScope.launch {
-            delay(10500)
-            delayGameJob?.cancel()
-
-            if(state.isCheckEnabled){
-                handleCheckAction()
-            }
-            else{
-                handleFoldAction()
+        if(game.players.size > 1 && round != GameRound.SHOWDOWN){
+            delayGameJob = gameScope.launch {
+                launchPlayerTimer()
             }
         }
     }
 
     private fun resetGame() {
-        delayGameJob?.cancel()
         round = GameRound.PREFLOP
 
         game.preflopRoundInit()
@@ -123,7 +118,6 @@ class GameModel() {
                 isFoldEnabled = true
             )
         }
-
     }
 
     private fun updateBettingRound() {
@@ -210,5 +204,17 @@ class GameModel() {
         game.players[game.currentPlayerIndex].fold()
 
         updateBettingRound()
+    }
+
+    private suspend fun launchPlayerTimer(){
+        delay(11000)
+        delayGameJob?.cancel()
+
+        if(gameState.value.isCheckEnabled && game.players.size > 1){
+            handleCheckAction()
+        }
+        else if(gameState.value.isFoldEnabled && game.players.size > 1){
+            handleFoldAction()
+        }
     }
 }
