@@ -1,9 +1,7 @@
 package com.backend.model
 
-import ch.qos.logback.core.net.server.Client
 import com.backend.data.GameRound
 import com.backend.gamelogic.Game
-import com.backend.gamelogic.LOGGER
 import com.backend.gamelogic.Player
 import io.ktor.websocket.WebSocketSession
 import io.ktor.websocket.send
@@ -48,20 +46,43 @@ class GameModel() {
             return null
         }
 
-        if(game.players.isNotEmpty()){
-            player = Player("User2", chipBuyInAmount = 1500)
-            game.players.add(player)
-
-            resetGame()
-        }
-        else{
+        if(!playerSockets.containsKey("User1")){
             player = Player("User1", chipBuyInAmount = 1000)
             game.players.add(player)
         }
+        else if(!playerSockets.containsKey("User2")){
+            player = Player("User2", chipBuyInAmount = 1500)
+            game.players.add(player)
+        }
+        else if(!playerSockets.containsKey("User3")){
+            player = Player("User3", chipBuyInAmount = 1300)
+            game.players.add(player)
+        }
+        else if(!playerSockets.containsKey("User4")){
+            player = Player("User4", chipBuyInAmount = 800)
+            game.players.add(player)
+        }
+        else if(!playerSockets.containsKey("User5")){
+            player = Player("User5", chipBuyInAmount = 1100)
+            game.players.add(player)
+        }
 
 
-        if(!playerSockets.containsKey(player.username)){
-            playerSockets[player.username] = session
+        if (player != null) {
+            if(!playerSockets.containsKey(player.username)){
+                playerSockets[player.username] = session
+            }
+        }
+
+        if(game.players.size == 2){
+            resetGame()
+        }
+        else if(game.players.size > 2) {
+            gameState.update { currentState ->
+                currentState.copy(
+                    players = serializePlayerData(game.players)
+                )
+            }
         }
 
 
@@ -77,7 +98,7 @@ class GameModel() {
 
         gameState.update { currentState ->
             currentState.copy(
-                players = game.players
+                players = serializePlayerData(game.players)
             )
         }
     }
@@ -109,7 +130,7 @@ class GameModel() {
                 bigBlind = game.bigBlind,
                 currentHighBet = game.currentHighBet,
                 dealerButtonPos = game.dealerButtonPos,
-                players = game.players,
+                players = serializePlayerData(game.players),
                 currentPlayerIndex = game.currentPlayerIndex,
                 communityCards = game.showStreet(round).map { it.cardLabel },
                 isRaiseEnabled = true,
@@ -161,7 +182,7 @@ class GameModel() {
         gameState.update { currentState ->
             currentState.copy(
                 potAmount = game.potAmount,
-                players = game.players,
+                players = serializePlayerData(game.players),
                 currentHighBet = game.currentHighBet,
                 currentPlayerIndex = game.currentPlayerIndex,
                 isCheckEnabled =
@@ -216,5 +237,24 @@ class GameModel() {
         else if(gameState.value.isFoldEnabled && game.players.size > 1){
             handleFoldAction()
         }
+    }
+
+    private fun serializePlayerData(players:  MutableList<Player>): MutableList<PlayerDataState> {
+        val playerData: MutableList<PlayerDataState> = mutableListOf()
+
+        players.forEach { player ->
+            playerData.add(
+                PlayerDataState(
+                    username = player.username,
+                    chipBuyInAmount = player.chipBuyInAmount,
+                    holeCards = player.getHoleCardsLabels(),
+                    playerHandRank = player.playerHandRank.first.label,
+                    playerState = player.playerState,
+                    playerBet = player.playerBet
+                )
+            )
+        }
+
+        return playerData
     }
 }

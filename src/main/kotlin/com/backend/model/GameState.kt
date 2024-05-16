@@ -11,7 +11,7 @@ data class GameState(
     val bigBlind: Int = 0,
     val currentHighBet: Int = 0,
     val dealerButtonPos: Int = 0,
-    val players: List<Player> = listOf(),
+    val players: List<PlayerDataState> = listOf(),
     val currentPlayerIndex: Int = 0,
     val communityCards: List<String> = listOf(),
     val isRaiseEnabled: Boolean = true,
