@@ -6,7 +6,12 @@ import com.backend.data.PlayingCard
 import kotlinx.serialization.Serializable
 
 
-class Player(val username: String, var chipBuyInAmount: Int) {
+class Player(
+    val userId: String,
+    val username: String,
+    var chipBuyInAmount: Int,
+    val avatarUrl: String?
+) {
 
     private var holeCards: Pair<PlayingCard, PlayingCard> = Pair(PlayingCard.TWO_OF_CLUBS, PlayingCard.ACE_OF_DIAMONDS)
     var playerHandRank: Pair<HandRankings, Int> = Pair(HandRankings.HIGH_CARD, 7462)

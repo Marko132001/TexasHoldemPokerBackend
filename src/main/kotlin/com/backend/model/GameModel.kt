@@ -2,6 +2,7 @@ package com.backend.model
 
 import com.backend.data.GameRound
 import com.backend.gamelogic.Game
+import com.backend.gamelogic.LOGGER
 import com.backend.gamelogic.Player
 import io.ktor.websocket.WebSocketSession
 import io.ktor.websocket.send
@@ -38,7 +39,7 @@ class GameModel() {
         println("INIT BLOCK")
     }
 
-    fun connectPlayer(session: WebSocketSession): Player? {
+    fun connectPlayer(session: WebSocketSession, userData: UserData): Player? {
         println("CONNECTING PLAYER")
         var player: Player? = null
 
@@ -46,32 +47,12 @@ class GameModel() {
             return null
         }
 
-        if(!playerSockets.containsKey("User1")){
-            player = Player("User1", chipBuyInAmount = 1000)
+        if(!playerSockets.containsKey(userData.userId)){
+            player = Player(userData.userId, userData.username,
+                userData.chipAmount, userData.avatarUrl)
             game.players.add(player)
-        }
-        else if(!playerSockets.containsKey("User2")){
-            player = Player("User2", chipBuyInAmount = 1500)
-            game.players.add(player)
-        }
-        else if(!playerSockets.containsKey("User3")){
-            player = Player("User3", chipBuyInAmount = 1300)
-            game.players.add(player)
-        }
-        else if(!playerSockets.containsKey("User4")){
-            player = Player("User4", chipBuyInAmount = 800)
-            game.players.add(player)
-        }
-        else if(!playerSockets.containsKey("User5")){
-            player = Player("User5", chipBuyInAmount = 1100)
-            game.players.add(player)
-        }
-
-
-        if (player != null) {
-            if(!playerSockets.containsKey(player.username)){
-                playerSockets[player.username] = session
-            }
+            LOGGER.trace("CONNECTED USER ID: ${player.userId}")
+            playerSockets[userData.userId] = session
         }
 
         if(game.players.size == 2){
@@ -84,7 +65,6 @@ class GameModel() {
                 )
             }
         }
-
 
         return player
     }
@@ -245,7 +225,9 @@ class GameModel() {
         players.forEach { player ->
             playerData.add(
                 PlayerDataState(
+                    userId = player.userId,
                     username = player.username,
+                    avatarUrl = player.avatarUrl,
                     chipBuyInAmount = player.chipBuyInAmount,
                     holeCards = player.getHoleCardsLabels(),
                     playerHandRank = player.playerHandRank.first.label,
