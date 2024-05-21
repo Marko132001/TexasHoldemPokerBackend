@@ -1,6 +1,7 @@
 package com.backend.model
 
 import com.backend.data.GameRound
+import com.backend.data.PlayerState
 import com.backend.gamelogic.Game
 import com.backend.gamelogic.LOGGER
 import com.backend.gamelogic.Player
@@ -32,6 +33,7 @@ class GameModel() {
 
     private val gameScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var delayGameJob: Job? = null
+    private var updateBackendJob: Job? = null
 
     private lateinit var round: GameRound
 
@@ -40,7 +42,9 @@ class GameModel() {
         println("INIT BLOCK")
     }
 
-    fun connectPlayer(session: WebSocketSession, userData: UserData): Player? {
+    suspend fun connectPlayer(session: WebSocketSession, userData: UserData): Player? {
+        updateBackendJob?.join()
+
         println("CONNECTING PLAYER")
         var player: Player? = null
 
@@ -51,7 +55,9 @@ class GameModel() {
         if(!playerSockets.containsKey(userData.userId)){
             player = Player(userData.userId, userData.username,
                 userData.chipAmount, userData.avatarUrl)
+
             game.players.add(player)
+
             LOGGER.trace("CONNECTED USER ID: ${player.userId}")
             playerSockets[userData.userId] = session
 
@@ -72,10 +78,18 @@ class GameModel() {
         return player
     }
 
-    fun disconnectPlayer(player: Player) {
+    suspend fun disconnectPlayer(player: Player) {
+        updateBackendJob?.join()
+
         game.players.remove(player)
+
         playerSockets.remove(player.userId)
         removePlayerFromTable(player.userId)
+
+        if(game.players.size < 2){
+            updateBackendJob?.cancel()
+            delayGameJob?.cancel()
+        }
 
         println("PLAYER ${player.username} DISCONNECTED")
         println("NUMBER OF PLAYERS ${game.players.size}")
@@ -104,6 +118,7 @@ class GameModel() {
     }
 
     private fun resetGame() {
+        updateBackendJob?.cancel()
         round = GameRound.PREFLOP
 
         game.preflopRoundInit()
@@ -127,7 +142,7 @@ class GameModel() {
         }
     }
 
-    private fun updateBettingRound() {
+    private suspend fun updateBettingRound() {
         delayGameJob?.cancel()
         val nextRound = game.nextRoundInit(round)
 
@@ -189,7 +204,9 @@ class GameModel() {
     fun handleCallAction() {
         game.updatePot(game.players[game.currentPlayerIndex].call(game.currentHighBet))
 
-        updateBettingRound()
+        updateBackendJob = gameScope.launch {
+            updateBettingRound()
+        }
     }
 
     fun handleRaiseAction(raiseAmount: Int) {
@@ -199,19 +216,25 @@ class GameModel() {
         game.currentHighBet = game.players[game.currentPlayerIndex].playerBet
         game.raiseFlag = true
 
-        updateBettingRound()
+        updateBackendJob = gameScope.launch {
+            updateBettingRound()
+        }
     }
 
     fun handleCheckAction() {
         game.players[game.currentPlayerIndex].check()
 
-        updateBettingRound()
+        updateBackendJob = gameScope.launch {
+            updateBettingRound()
+        }
     }
 
     fun handleFoldAction() {
         game.players[game.currentPlayerIndex].fold()
 
-        updateBettingRound()
+        updateBackendJob = gameScope.launch {
+            updateBettingRound()
+        }
     }
 
     private suspend fun launchPlayerTimer(){

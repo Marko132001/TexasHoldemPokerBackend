@@ -15,7 +15,7 @@ class Player(
 
     private var holeCards: Pair<PlayingCard, PlayingCard> = Pair(PlayingCard.TWO_OF_CLUBS, PlayingCard.ACE_OF_DIAMONDS)
     var playerHandRank: Pair<HandRankings, Int> = Pair(HandRankings.HIGH_CARD, 7462)
-    var playerState: PlayerState = PlayerState.INACTIVE
+    var playerState: PlayerState = PlayerState.SPECTATOR
     var playerBet: Int = 0
 
     fun assignHoleCards(holeCardsAssigned: Pair<PlayingCard, PlayingCard>){
