@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class GameState(
     val round: GameRound = GameRound.PREFLOP,
+    val playerSeatPositions: Array<String?> = arrayOfNulls(5),
     val potAmount: Int = 0,
     val bigBlind: Int = 0,
     val currentHighBet: Int = 0,

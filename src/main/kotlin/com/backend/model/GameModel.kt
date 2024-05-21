@@ -25,6 +25,7 @@ class GameModel() {
 
     companion object {
         val game: Game = Game()
+        val playerSeatPositions: Array<String?> = arrayOfNulls(5)
     }
 
     private val playerSockets = ConcurrentHashMap<String, WebSocketSession>()
@@ -53,6 +54,8 @@ class GameModel() {
             game.players.add(player)
             LOGGER.trace("CONNECTED USER ID: ${player.userId}")
             playerSockets[userData.userId] = session
+
+            addPlayerToEmptySeat(player.userId)
         }
 
         if(game.players.size == 2){
@@ -71,13 +74,15 @@ class GameModel() {
 
     fun disconnectPlayer(player: Player) {
         game.players.remove(player)
-        playerSockets.remove(player.username)
+        playerSockets.remove(player.userId)
+        removePlayerFromTable(player.userId)
 
         println("PLAYER ${player.username} DISCONNECTED")
         println("NUMBER OF PLAYERS ${game.players.size}")
 
         gameState.update { currentState ->
             currentState.copy(
+                playerSeatPositions = playerSeatPositions,
                 players = serializePlayerData(game.players)
             )
         }
@@ -106,6 +111,7 @@ class GameModel() {
         gameState.update { currentState ->
             currentState.copy(
                 round = round,
+                playerSeatPositions = playerSeatPositions,
                 potAmount = game.potAmount,
                 bigBlind = game.bigBlind,
                 currentHighBet = game.currentHighBet,
@@ -162,6 +168,7 @@ class GameModel() {
         gameState.update { currentState ->
             currentState.copy(
                 potAmount = game.potAmount,
+                playerSeatPositions = playerSeatPositions,
                 players = serializePlayerData(game.players),
                 currentHighBet = game.currentHighBet,
                 currentPlayerIndex = game.currentPlayerIndex,
@@ -219,7 +226,25 @@ class GameModel() {
         }
     }
 
-    private fun serializePlayerData(players:  MutableList<Player>): MutableList<PlayerDataState> {
+    private fun addPlayerToEmptySeat(userId: String){
+        playerSeatPositions.forEachIndexed { index, playerUserId ->
+            if(playerUserId == null){
+                playerSeatPositions[index] = userId
+                return
+            }
+        }
+    }
+
+    private fun removePlayerFromTable(userId: String){
+        playerSeatPositions.forEachIndexed { index, playerUserId ->
+            if(playerUserId == userId){
+                playerSeatPositions[index] = null
+                return
+            }
+        }
+    }
+
+    private fun serializePlayerData(players:  List<Player>): List<PlayerDataState> {
         val playerData: MutableList<PlayerDataState> = mutableListOf()
 
         players.forEach { player ->
