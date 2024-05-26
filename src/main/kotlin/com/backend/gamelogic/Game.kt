@@ -4,6 +4,7 @@ import com.backend.data.GameRound
 import com.backend.data.HandRankings
 import com.backend.data.PlayerState
 import com.backend.data.PlayingCard
+import com.backend.model.GameModel
 import io.ktor.util.logging.KtorSimpleLogger
 
 internal val LOGGER = KtorSimpleLogger("com.example.RequestTracePlugin")
@@ -88,10 +89,18 @@ class Game() {
             return GameRound.SHOWDOWN
         }
 
+        var countInactivePlayers = 0
+        players.forEach {
+                player ->
+                    if(player.playerState == PlayerState.INACTIVE){
+                        countInactivePlayers++
+                    }
+        }
+
         currentPlayerIndex = getPlayerRolePosition(currentPlayerIndex)
         LOGGER.trace("Current player index: $currentPlayerIndex")
 
-        if(currentPlayerIndex != -1 && !checkPlayerHighBet(currentPlayerIndex)){
+        if((countInactivePlayers > 0 && !raiseFlag) || checkPlayerHighBet(currentPlayerIndex)){
             LOGGER.trace("Current round is not finished yet.")
             return round
         }
@@ -154,25 +163,16 @@ class Game() {
 
     }
 
-    private fun checkEndRoundIndex(playerIndex: Int): Boolean {
-        LOGGER.trace("Checking end round index.")
-        LOGGER.trace("Player index: $playerIndex; End round index: $endRoundIndex")
-        return playerIndex == endRoundIndex && !raiseFlag
-    }
-
     private fun checkPlayerHighBet(playerIndex: Int): Boolean {
         LOGGER.trace("Checking player high bet.")
         LOGGER.trace("Player bet: ${players[playerIndex].playerBet}; High bet: $currentHighBet")
-        return players[playerIndex].playerBet == currentHighBet && raiseFlag
+        return players[playerIndex].playerBet != currentHighBet && raiseFlag
     }
 
     private fun getPlayerRolePosition(playerRoleStart: Int): Int {
         var playerRoleIndex = playerRoleStart
         do {
             playerRoleIndex = (playerRoleIndex + 1) % players.size
-            if(checkEndRoundIndex(playerRoleIndex)){
-                return -1
-            }
         }while(
             players[playerRoleIndex].playerState == PlayerState.FOLD
             || players[playerRoleIndex].playerState == PlayerState.ALL_IN

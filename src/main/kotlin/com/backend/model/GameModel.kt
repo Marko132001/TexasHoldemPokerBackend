@@ -11,12 +11,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
@@ -44,25 +46,25 @@ class GameModel() {
 
     suspend fun connectPlayer(session: WebSocketSession, userData: UserData): Player? {
         updateBackendJob?.join()
+        delayGameJob?.join()
 
         println("CONNECTING PLAYER")
         var player: Player? = null
 
-        if(game.players.size == 5){
+        if(game.players.size == 5 || playerSockets.containsKey(userData.userId)){
             return null
         }
 
-        if(!playerSockets.containsKey(userData.userId)){
-            player = Player(userData.userId, userData.username,
-                userData.chipAmount, userData.avatarUrl)
+        player = Player(userData.userId, userData.username,
+            userData.chipAmount, userData.avatarUrl)
 
-            game.players.add(player)
+        game.players.add(player)
 
-            LOGGER.trace("CONNECTED USER ID: ${player.userId}")
-            playerSockets[userData.userId] = session
+        LOGGER.trace("CONNECTED USER ID: ${player.userId}")
+        playerSockets[userData.userId] = session
 
-            addPlayerToEmptySeat(player.userId)
-        }
+        addPlayerToEmptySeat(player.userId)
+
 
         if(game.players.size == 2){
             resetGame()
@@ -70,6 +72,7 @@ class GameModel() {
         else if(game.players.size > 2) {
             gameState.update { currentState ->
                 currentState.copy(
+                    playerSeatPositions = playerSeatPositions,
                     players = serializePlayerData(game.players)
                 )
             }
@@ -80,13 +83,32 @@ class GameModel() {
 
     suspend fun disconnectPlayer(player: Player) {
         updateBackendJob?.join()
+        delayGameJob?.join()
 
-        game.players.remove(player)
+        val playerIndex = game.players.indexOf(player)
+        game.players.removeAt(playerIndex)
+
+        if(game.dealerButtonPos >= playerIndex) {
+            if(game.dealerButtonPos == 0){
+                game.dealerButtonPos = game.players.size - 1
+            }
+            else{
+                game.dealerButtonPos--
+            }
+        }
+        if(game.currentPlayerIndex >= playerIndex){
+            if(game.currentPlayerIndex == 0){
+                game.currentPlayerIndex = game.players.size - 1
+            }
+            else{
+                game.currentPlayerIndex--
+            }
+        }
 
         playerSockets.remove(player.userId)
         removePlayerFromTable(player.userId)
 
-        if(game.players.size < 2){
+        if (game.players.size < 2) {
             updateBackendJob?.cancel()
             delayGameJob?.cancel()
         }
@@ -97,7 +119,9 @@ class GameModel() {
         gameState.update { currentState ->
             currentState.copy(
                 playerSeatPositions = playerSeatPositions,
-                players = serializePlayerData(game.players)
+                players = serializePlayerData(game.players),
+                dealerButtonPos = game.dealerButtonPos,
+                currentPlayerIndex = game.currentPlayerIndex
             )
         }
     }
