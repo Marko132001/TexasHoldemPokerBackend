@@ -56,6 +56,11 @@ fun Route.socket(gameModel: GameModel) {
                                 return@webSocket
                             }
                         }
+                        else if(type == "user_rebuy"){
+                            val userData: UserData = Json.decodeFromString(body)
+
+                            gameModel.rebuyPlayerChips(userData)
+                        }
                     }
                 }
             } catch(e: Exception){

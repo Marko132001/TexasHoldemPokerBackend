@@ -261,6 +261,11 @@ class GameModel() {
         }
     }
 
+    suspend fun rebuyPlayerChips(userData: UserData){
+        updateBackendJob?.join()
+        game.players.find { it.userId == userData.userId }?.assignChips(userData.chipAmount)
+    }
+
     private suspend fun launchPlayerTimer(){
         delay(11000)
         delayGameJob?.cancel()
