@@ -29,6 +29,7 @@ class GameModel() {
     companion object {
         val game: Game = Game()
         val playerSeatPositions: Array<String?> = arrayOfNulls(5)
+        var isEnoughPlayers = false
     }
 
     private val playerSockets = ConcurrentHashMap<String, WebSocketSession>()
@@ -76,6 +77,10 @@ class GameModel() {
                     players = serializePlayerData(game.players)
                 )
             }
+
+            if(!isEnoughPlayers){
+                resetGame()
+            }
         }
 
         return player
@@ -83,9 +88,14 @@ class GameModel() {
 
     suspend fun disconnectPlayer(player: Player) {
         updateBackendJob?.join()
-        delayGameJob?.join()
+
+        var isCurrentPlayerIndex = false
 
         val playerIndex = game.players.indexOf(player)
+        if(playerIndex == game.currentPlayerIndex){
+            isCurrentPlayerIndex = true
+        }
+
         game.players.removeAt(playerIndex)
 
         if(game.dealerButtonPos >= playerIndex) {
@@ -108,21 +118,17 @@ class GameModel() {
         playerSockets.remove(player.userId)
         removePlayerFromTable(player.userId)
 
-        if (game.players.size < 2) {
-            updateBackendJob?.cancel()
-            delayGameJob?.cancel()
-        }
-
         println("PLAYER ${player.username} DISCONNECTED")
         println("NUMBER OF PLAYERS ${game.players.size}")
 
-        gameState.update { currentState ->
-            currentState.copy(
-                playerSeatPositions = playerSeatPositions,
-                players = serializePlayerData(game.players),
-                dealerButtonPos = game.dealerButtonPos,
-                currentPlayerIndex = game.currentPlayerIndex
-            )
+        if (game.players.size == 0) {
+            updateBackendJob?.cancel()
+            delayGameJob?.cancel()
+            return
+        }
+
+        if(isCurrentPlayerIndex){
+            updateBettingRound()
         }
     }
 
@@ -134,7 +140,8 @@ class GameModel() {
             )
         }
 
-        if(game.players.size > 1 && round != GameRound.SHOWDOWN){
+        if(game.players.size > 1 && round != GameRound.SHOWDOWN && isEnoughPlayers){
+            delayGameJob?.cancel()
             delayGameJob = gameScope.launch {
                 launchPlayerTimer()
             }
@@ -145,7 +152,7 @@ class GameModel() {
         updateBackendJob?.cancel()
         round = GameRound.PREFLOP
 
-        game.preflopRoundInit()
+        isEnoughPlayers = game.preflopRoundInit()
 
         gameState.update { currentState ->
             currentState.copy(
@@ -183,7 +190,6 @@ class GameModel() {
 
             delayGameJob = gameScope.launch {
                 delay(4000)
-                delayGameJob?.cancel()
                 resetGame()
             }
 
@@ -210,6 +216,7 @@ class GameModel() {
                 playerSeatPositions = playerSeatPositions,
                 players = serializePlayerData(game.players),
                 currentHighBet = game.currentHighBet,
+                dealerButtonPos = game.dealerButtonPos,
                 currentPlayerIndex = game.currentPlayerIndex,
                 isCheckEnabled =
                 game.currentHighBet <= game.players[game.currentPlayerIndex].playerBet
@@ -264,11 +271,13 @@ class GameModel() {
     suspend fun rebuyPlayerChips(userData: UserData){
         updateBackendJob?.join()
         game.players.find { it.userId == userData.userId }?.assignChips(userData.chipAmount)
+        if(!isEnoughPlayers){
+            resetGame()
+        }
     }
 
     private suspend fun launchPlayerTimer(){
         delay(11000)
-        delayGameJob?.cancel()
 
         if(gameState.value.isCheckEnabled && game.players.size > 1){
             handleCheckAction()

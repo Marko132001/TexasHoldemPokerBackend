@@ -19,7 +19,6 @@ class Game() {
     private var communityCards: MutableList<PlayingCard> = mutableListOf()
     var dealerButtonPos: Int = -1
     var currentPlayerIndex: Int = -1
-    private var endRoundIndex: Int = -1
     var raiseFlag: Boolean = false
 
     companion object CardConstants {
@@ -32,13 +31,11 @@ class Game() {
         const val HAND_COMBINATION = 3
     }
 
-    fun preflopRoundInit() {
-        raiseFlag = false
+    fun preflopRoundInit(): Boolean {
 
         LOGGER.trace("Initializing preflop round...")
-        currentPlayerIndex = -1
-        endRoundIndex = -1
 
+        var countInactivePlayers = 0
         players.forEach {
             player ->
                 if(player.chipBuyInAmount == 0){
@@ -46,11 +43,18 @@ class Game() {
                 }
                 else {
                     player.playerState = PlayerState.INACTIVE
+                    countInactivePlayers++
                 }
                 player.playerHandRank = Pair(HandRankings.HIGH_CARD, 7462)
                 player.playerBet = 0
         }
 
+        if(countInactivePlayers < 2){
+            return false
+        }
+
+        raiseFlag = false
+        currentPlayerIndex = -1
         dealerButtonPos = getPlayerRolePosition(dealerButtonPos)
 
         val cards: List<PlayingCard> = shuffleCardsDeck()
@@ -60,7 +64,6 @@ class Game() {
         val smallBlindIndex = getPlayerRolePosition(dealerButtonPos)
         val bigBlindIndex = getPlayerRolePosition(smallBlindIndex)
         currentPlayerIndex = getPlayerRolePosition(bigBlindIndex)
-        endRoundIndex = currentPlayerIndex
 
         potAmount = 0
         currentHighBet = 0
@@ -80,6 +83,7 @@ class Game() {
         )
         currentHighBet = bigBlind
 
+        return true
     }
 
     fun nextRoundInit(round: GameRound): GameRound {
@@ -127,15 +131,12 @@ class Game() {
 
         raiseFlag = false
         currentPlayerIndex = -1
-        endRoundIndex = -1
 
         LOGGER.trace("Updating current player index...")
 
         currentPlayerIndex = getPlayerRolePosition(dealerButtonPos)
 
         LOGGER.trace("Current player index: $currentPlayerIndex")
-
-        endRoundIndex = currentPlayerIndex
 
         currentHighBet = 0
 
