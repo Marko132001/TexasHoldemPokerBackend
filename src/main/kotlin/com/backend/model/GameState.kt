@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class GameState(
     val round: GameRound = GameRound.PREFLOP,
+    val isEnoughPlayers: Boolean = false,
     val playerSeatPositions: Array<String?> = arrayOfNulls(5),
     val potAmount: Int = 0,
     val bigBlind: Int = 0,
@@ -27,6 +28,7 @@ data class GameState(
         other as GameState
 
         if (round != other.round) return false
+        if (isEnoughPlayers != other.isEnoughPlayers) return false
         if (!playerSeatPositions.contentEquals(other.playerSeatPositions)) return false
         if (potAmount != other.potAmount) return false
         if (bigBlind != other.bigBlind) return false
@@ -45,6 +47,7 @@ data class GameState(
 
     override fun hashCode(): Int {
         var result = round.hashCode()
+        result = 31 * result + isEnoughPlayers.hashCode()
         result = 31 * result + playerSeatPositions.contentHashCode()
         result = 31 * result + potAmount
         result = 31 * result + bigBlind

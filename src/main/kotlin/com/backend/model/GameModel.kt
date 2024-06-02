@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
@@ -37,6 +38,7 @@ class GameModel() {
     private val gameScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var delayGameJob: Job? = null
     private var updateBackendJob: Job? = null
+    private val mutex = Mutex()
 
     private lateinit var round: GameRound
 
@@ -67,19 +69,15 @@ class GameModel() {
         addPlayerToEmptySeat(player.userId)
 
 
-        if(game.players.size == 2){
+        if(game.players.size == 2 || (game.players.size > 2 && !isEnoughPlayers)){
             resetGame()
         }
-        else if(game.players.size > 2) {
+        else{
             gameState.update { currentState ->
                 currentState.copy(
                     playerSeatPositions = playerSeatPositions,
                     players = serializePlayerData(game.players)
                 )
-            }
-
-            if(!isEnoughPlayers){
-                resetGame()
             }
         }
 
@@ -124,11 +122,20 @@ class GameModel() {
         if (game.players.size == 0) {
             updateBackendJob?.cancel()
             delayGameJob?.cancel()
+            gameState.update { currentState ->
+                currentState.copy(
+                    playerSeatPositions = playerSeatPositions,
+                    players = serializePlayerData(game.players),
+                    isEnoughPlayers = false,
+                )
+            }
             return
         }
 
-        if(isCurrentPlayerIndex){
-            updateBettingRound()
+        if((isCurrentPlayerIndex || game.players.size == 1) && !mutex.isLocked){
+            mutex.withLock {
+                updateBettingRound()
+            }
         }
     }
 
@@ -158,6 +165,7 @@ class GameModel() {
             currentState.copy(
                 round = round,
                 playerSeatPositions = playerSeatPositions,
+                isEnoughPlayers = isEnoughPlayers,
                 potAmount = game.potAmount,
                 bigBlind = game.bigBlind,
                 currentHighBet = game.currentHighBet,
@@ -214,6 +222,7 @@ class GameModel() {
             currentState.copy(
                 potAmount = game.potAmount,
                 playerSeatPositions = playerSeatPositions,
+                isEnoughPlayers = isEnoughPlayers,
                 players = serializePlayerData(game.players),
                 currentHighBet = game.currentHighBet,
                 dealerButtonPos = game.dealerButtonPos,
@@ -233,38 +242,52 @@ class GameModel() {
     }
 
     fun handleCallAction() {
-        game.updatePot(game.players[game.currentPlayerIndex].call(game.currentHighBet))
-
-        updateBackendJob = gameScope.launch {
-            updateBettingRound()
+        if(!mutex.isLocked) {
+            updateBackendJob = gameScope.launch {
+                mutex.withLock {
+                    game.updatePot(game.players[game.currentPlayerIndex].call(game.currentHighBet))
+                    updateBettingRound()
+                }
+            }
         }
     }
 
     fun handleRaiseAction(raiseAmount: Int) {
-        game.updatePot(game.players[game.currentPlayerIndex]
-            .raise(game.currentHighBet, raiseAmount)
-        )
-        game.currentHighBet = game.players[game.currentPlayerIndex].playerBet
-        game.raiseFlag = true
+        if(!mutex.isLocked) {
+            updateBackendJob = gameScope.launch {
+                mutex.withLock {
+                    game.updatePot(
+                        game.players[game.currentPlayerIndex]
+                            .raise(game.currentHighBet, raiseAmount)
+                    )
+                    game.currentHighBet = game.players[game.currentPlayerIndex].playerBet
+                    game.raiseFlag = true
 
-        updateBackendJob = gameScope.launch {
-            updateBettingRound()
+                    updateBettingRound()
+                }
+            }
         }
     }
 
     fun handleCheckAction() {
-        game.players[game.currentPlayerIndex].check()
-
-        updateBackendJob = gameScope.launch {
-            updateBettingRound()
+        if(!mutex.isLocked) {
+            updateBackendJob = gameScope.launch {
+                mutex.withLock {
+                    game.players[game.currentPlayerIndex].check()
+                    updateBettingRound()
+                }
+            }
         }
     }
 
     fun handleFoldAction() {
-        game.players[game.currentPlayerIndex].fold()
-
-        updateBackendJob = gameScope.launch {
-            updateBettingRound()
+        if(!mutex.isLocked) {
+            updateBackendJob = gameScope.launch {
+                mutex.withLock {
+                    game.players[game.currentPlayerIndex].fold()
+                    updateBettingRound()
+                }
+            }
         }
     }
 
