@@ -6,6 +6,7 @@ import com.backend.data.PlayerState
 import com.backend.data.PlayingCard
 import com.backend.model.GameModel
 import io.ktor.util.logging.KtorSimpleLogger
+import kotlin.math.min
 
 internal val LOGGER = KtorSimpleLogger("com.example.RequestTracePlugin")
 
@@ -254,7 +255,7 @@ class Game() {
         val tmpCardComb = arrayOfNulls<PlayingCard>(CardConstants.HAND_COMBINATION)
         val cardCombinations = mutableListOf<PlayingCard>()
         val handEvaluator = CardHandEvaluator()
-        val winner: MutableList<Player> = mutableListOf(players[0])
+        val winners: MutableList<Player> = mutableListOf(players[0])
         players.forEach {
             player ->
                 if(player.playerState != PlayerState.FOLD
@@ -265,26 +266,28 @@ class Game() {
                         CardConstants.HAND_COMBINATION, handEvaluator,
                         player, cardCombinations
                     )
-                }
 
-                if(player.playerHandRank.second < winner[0].playerHandRank.second){
-                    winner.clear()
-                    winner.add(player)
-                }
-                else if(player.playerHandRank.second == winner[0].playerHandRank.second){
-                    winner.add(player)
+                    if(player.playerHandRank.second < winners[0].playerHandRank.second){
+                        winners.clear()
+                        winners.add(player)
+                    }
+                    else if(player.playerHandRank.second == winners[0].playerHandRank.second
+                        && player.userId != winners[0].userId)
+                    {
+                        winners.add(player)
+                    }
                 }
         }
 
-        return winner
+        return winners
     }
 
     fun assignChipsToWinner(winners: MutableList<Player>) {
         val splitPot = potAmount / winners.size
-        val leftoverChips = potAmount % winners.size
-        //TODO: Leftover chips logic
+
         winners.forEach {
             player ->
+            println("Player ${player.username} won $splitPot chips. Total pot: $potAmount")
                 player.playerState = PlayerState.WINNER
                 player.assignChips(splitPot)
         }
