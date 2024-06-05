@@ -89,6 +89,13 @@ class GameModel() {
 
         var isCurrentPlayerIndex = false
 
+        game.pots.forEach { pot ->
+            if(pot.amount == 0){
+                pot.amount += player.playerBet
+            }
+            pot.players.remove(player)
+        }
+
         val playerIndex = game.players.indexOf(player)
         if(playerIndex == game.currentPlayerIndex){
             isCurrentPlayerIndex = true
@@ -132,7 +139,7 @@ class GameModel() {
             return
         }
 
-        if((isCurrentPlayerIndex || game.players.size == 1) && !mutex.isLocked){
+        if((isCurrentPlayerIndex || game.players.size == 1) && isEnoughPlayers && !mutex.isLocked){
             mutex.withLock {
                 updateBettingRound()
             }
@@ -187,7 +194,7 @@ class GameModel() {
 
         if(nextRound == GameRound.SHOWDOWN){
             round = nextRound
-            game.assignChipsToWinner(game.rankCardHands())
+            game.assignChipsToWinner()
 
             gameState.update { currentState ->
                 currentState.copy(

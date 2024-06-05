@@ -14,6 +14,7 @@ class Game() {
 
     var players: MutableList<Player> = mutableListOf()
     var potAmount: Int = 0
+    val pots: MutableList<Pot> = mutableListOf()
     var currentHighBet: Int = 0
     val smallBlind: Int = 25
     val bigBlind: Int = 50
@@ -62,6 +63,9 @@ class Game() {
         generateHoleCards(cards)
         generateCommunityCards(cards)
 
+        pots.clear()
+        pots.add(Pot())
+
         val smallBlindIndex = getPlayerRolePosition(dealerButtonPos)
         val bigBlindIndex = getPlayerRolePosition(smallBlindIndex)
         currentPlayerIndex = getPlayerRolePosition(bigBlindIndex)
@@ -90,6 +94,11 @@ class Game() {
     fun nextRoundInit(round: GameRound): GameRound {
 
         if(showdownEdgeCases()){
+            addChipsToPot()
+            players.firstOrNull { it.playerBet > 0 }?.let { player ->
+                println("Returned ${player.playerBet} chips to ${player.username}.")
+                player.assignChips(player.playerBet)
+            }
             LOGGER.trace("Moving to showdown round. No more player actions available.")
             return GameRound.SHOWDOWN
         }
@@ -115,7 +124,6 @@ class Game() {
         var countPlayersWithActions = 0
         players.forEach {
                 player ->
-                    player.playerBet = 0
                     if(player.playerState != PlayerState.FOLD
                         && player.playerState != PlayerState.ALL_IN
                         && player.playerState != PlayerState.SPECTATOR
@@ -125,7 +133,13 @@ class Game() {
                     }
         }
 
+        addChipsToPot()
+
         if(countPlayersWithActions <= 1){
+            players.firstOrNull { it.playerBet > 0 }?.let { player ->
+                println("Returned ${player.playerBet} chips to ${player.username}.")
+                player.assignChips(player.playerBet)
+            }
             LOGGER.trace("Moving to showdown round. No more player actions available.")
             return GameRound.SHOWDOWN
         }
@@ -219,6 +233,36 @@ class Game() {
         potAmount += playerBet
     }
 
+    private fun addChipsToPot() {
+        val currentPotIndex = pots.size - 1
+
+        val lowestPlayerBet = players.filter {
+            it.playerBet > 0
+        }.let { playerList ->
+            playerList.minOfOrNull {
+                player -> player.playerBet
+            }
+        } ?: return
+
+        players.forEach { player ->
+            if(player.playerBet > 0){
+                pots[currentPotIndex].amount += lowestPlayerBet
+                pots[currentPotIndex].players.add(player)
+                player.playerBet -= lowestPlayerBet
+            }
+        }
+
+        val playersWithRemainingBet = players.count { it.playerBet > 0 }
+
+        if(playersWithRemainingBet > 1){
+            pots.add(Pot())
+            addChipsToPot()
+        }
+        else{
+            return
+        }
+    }
+
     private fun combinationUtil(
         comCards: MutableList<PlayingCard>, tmpCardComb: Array<PlayingCard?>, start: Int,
         end: Int, index: Int, r: Int, handEvaluator: CardHandEvaluator,
@@ -251,12 +295,13 @@ class Game() {
         }
     }
 
-    fun rankCardHands(): MutableList<Player> {
+    private fun rankCardHands(potPlayers: MutableSet<Player>): MutableSet<Player> {
         val tmpCardComb = arrayOfNulls<PlayingCard>(CardConstants.HAND_COMBINATION)
         val cardCombinations = mutableListOf<PlayingCard>()
         val handEvaluator = CardHandEvaluator()
-        val winners: MutableList<Player> = mutableListOf(players[0])
-        players.forEach {
+        val winners: MutableSet<Player> = mutableSetOf()
+        var winningScore: Int = 7462
+        potPlayers.forEach {
             player ->
                 if(player.playerState != PlayerState.FOLD
                     && player.playerState != PlayerState.SPECTATOR) {
@@ -267,13 +312,12 @@ class Game() {
                         player, cardCombinations
                     )
 
-                    if(player.playerHandRank.second < winners[0].playerHandRank.second){
+                    if(player.playerHandRank.second < winningScore){
                         winners.clear()
                         winners.add(player)
+                        winningScore = player.playerHandRank.second
                     }
-                    else if(player.playerHandRank.second == winners[0].playerHandRank.second
-                        && player.userId != winners[0].userId)
-                    {
+                    else if(player.playerHandRank.second == winningScore) {
                         winners.add(player)
                     }
                 }
@@ -282,14 +326,24 @@ class Game() {
         return winners
     }
 
-    fun assignChipsToWinner(winners: MutableList<Player>) {
-        val splitPot = potAmount / winners.size
+    fun assignChipsToWinner() {
+        pots.forEach { pot ->
+            var winners = mutableSetOf<Player>()
 
-        winners.forEach {
-            player ->
-            println("Player ${player.username} won $splitPot chips. Total pot: $potAmount")
-                player.playerState = PlayerState.WINNER
-                player.assignChips(splitPot)
+            if(pot.players.size == 1){
+                winners.add(pot.players.first())
+            }
+            else{
+                winners = rankCardHands(pot.players)
+            }
+
+            val splitPot = pot.amount / winners.size
+
+            winners.forEach { winner ->
+                println("Player ${winner.username} won $splitPot chips. Total pot: $potAmount")
+                winner.playerState = PlayerState.WINNER
+                winner.assignChips(splitPot)
+            }
         }
     }
 
