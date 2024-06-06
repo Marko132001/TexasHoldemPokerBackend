@@ -92,6 +92,11 @@ class Player(
         chipBuyInAmount -= smallBlindValue
         playerBet = smallBlindValue
 
+        if(chipBuyInAmount == 0){
+            playerState = PlayerState.ALL_IN
+        }
+
+
         LOGGER.trace("${username} is SMALL BLIND")
 
         return smallBlindValue
@@ -100,6 +105,10 @@ class Player(
     fun payBigBlind(bigBlindValue: Int): Int {
         chipBuyInAmount -= bigBlindValue
         playerBet = bigBlindValue
+
+        if(chipBuyInAmount == 0){
+            playerState = PlayerState.ALL_IN
+        }
 
         LOGGER.trace("${username} is BIG BLIND")
 

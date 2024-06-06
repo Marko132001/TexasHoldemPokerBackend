@@ -307,7 +307,7 @@ class GameModel() {
     }
 
     private suspend fun launchPlayerTimer(){
-        delay(11000)
+        delay(12000)
 
         if(gameState.value.isCheckEnabled && game.players.size > 1){
             handleCheckAction()
