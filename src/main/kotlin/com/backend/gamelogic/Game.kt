@@ -4,13 +4,16 @@ import com.backend.data.GameRound
 import com.backend.data.HandRankings
 import com.backend.data.PlayerState
 import com.backend.data.PlayingCard
-import com.backend.model.GameModel
+import com.google.cloud.firestore.CollectionReference
+import com.google.cloud.firestore.FieldValue
 import io.ktor.util.logging.KtorSimpleLogger
-import kotlin.math.min
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 internal val LOGGER = KtorSimpleLogger("com.example.RequestTracePlugin")
 
-class Game() {
+class Game(private val firestoreRef: CollectionReference) {
 
     var players: MutableList<Player> = mutableListOf()
     var potAmount: Int = 0
@@ -78,11 +81,13 @@ class Game() {
         LOGGER.trace("Current player index: $currentPlayerIndex")
 
         updatePot(
+            players[smallBlindIndex].userId,
             players[smallBlindIndex]
                 .paySmallBlind(smallBlind)
         )
 
         updatePot(
+            players[bigBlindIndex].userId,
             players[bigBlindIndex]
                 .payBigBlind(bigBlind)
         )
@@ -95,10 +100,6 @@ class Game() {
 
         if(showdownEdgeCases()){
             addChipsToPot()
-            players.firstOrNull { it.playerBet > 0 }?.let { player ->
-                println("Returned ${player.playerBet} chips to ${player.username}.")
-                player.assignChips(player.playerBet)
-            }
             LOGGER.trace("Moving to showdown round. No more player actions available.")
             return GameRound.SHOWDOWN
         }
@@ -136,10 +137,6 @@ class Game() {
         addChipsToPot()
 
         if(countPlayersWithActions <= 1){
-            players.firstOrNull { it.playerBet > 0 }?.let { player ->
-                println("Returned ${player.playerBet} chips to ${player.username}.")
-                player.assignChips(player.playerBet)
-            }
             LOGGER.trace("Moving to showdown round. No more player actions available.")
             return GameRound.SHOWDOWN
         }
@@ -229,8 +226,13 @@ class Game() {
         }
     }
 
-    fun updatePot(playerBet: Int) {
+    fun updatePot(userId: String, playerBet: Int) {
         potAmount += playerBet
+
+        CoroutineScope(Dispatchers.IO).launch {
+            firestoreRef.document(userId)
+                .update("chipAmount", FieldValue.increment(-playerBet.toLong()))
+        }
     }
 
     private fun addChipsToPot() {
@@ -334,6 +336,17 @@ class Game() {
                 winners.add(pot.players.first())
             }
             else{
+                players.firstOrNull { it.playerBet > 0 }?.let { player ->
+                    println("Returned ${player.playerBet} chips to ${player.username}.")
+                    player.playerState = PlayerState.WINNER
+                    player.assignChips(player.playerBet)
+
+                    CoroutineScope(Dispatchers.IO).launch {
+                        firestoreRef.document(player.userId)
+                            .update("chipAmount", FieldValue.increment(player.playerBet.toLong()))
+                    }
+                }
+
                 winners = rankCardHands(pot.players)
             }
 
@@ -343,6 +356,11 @@ class Game() {
                 println("Player ${winner.username} won $splitPot chips. Total pot: $potAmount")
                 winner.playerState = PlayerState.WINNER
                 winner.assignChips(splitPot)
+
+                CoroutineScope(Dispatchers.IO).launch {
+                    firestoreRef.document(winner.userId)
+                        .update("chipAmount", FieldValue.increment(splitPot.toLong()))
+                }
             }
         }
     }

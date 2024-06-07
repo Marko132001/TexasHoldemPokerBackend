@@ -34,3 +34,5 @@ out/
 
 ### VS Code ###
 .vscode/
+
+/src/main/resources/pokerapp-8f562-firebase-adminsdk-7n239-13a746135f.json

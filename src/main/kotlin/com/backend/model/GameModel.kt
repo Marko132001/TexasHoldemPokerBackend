@@ -1,17 +1,16 @@
 package com.backend.model
 
 import com.backend.data.GameRound
-import com.backend.data.PlayerState
 import com.backend.gamelogic.Game
 import com.backend.gamelogic.LOGGER
 import com.backend.gamelogic.Player
+import com.google.firebase.cloud.FirestoreClient
 import io.ktor.websocket.WebSocketSession
 import io.ktor.websocket.send
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.launchIn
@@ -28,7 +27,7 @@ class GameModel() {
     private val gameState = MutableStateFlow(GameState())
 
     companion object {
-        val game: Game = Game()
+        val game: Game = Game(FirestoreClient.getFirestore().collection("users"))
         val playerSeatPositions: Array<String?> = arrayOfNulls(5)
         var isEnoughPlayers = false
     }
@@ -252,7 +251,10 @@ class GameModel() {
         if(!mutex.isLocked) {
             updateBackendJob = gameScope.launch {
                 mutex.withLock {
-                    game.updatePot(game.players[game.currentPlayerIndex].call(game.currentHighBet))
+                    game.updatePot(
+                        game.players[game.currentPlayerIndex].userId,
+                        game.players[game.currentPlayerIndex].call(game.currentHighBet)
+                    )
                     updateBettingRound()
                 }
             }
@@ -264,6 +266,7 @@ class GameModel() {
             updateBackendJob = gameScope.launch {
                 mutex.withLock {
                     game.updatePot(
+                        game.players[game.currentPlayerIndex].userId,
                         game.players[game.currentPlayerIndex]
                             .raise(game.currentHighBet, raiseAmount)
                     )

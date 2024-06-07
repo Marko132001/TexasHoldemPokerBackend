@@ -1,7 +1,6 @@
 package com.backend
 
-import com.backend.gamelogic.Game
-import com.backend.gamelogic.LOGGER
+import com.backend.firebase.FirebaseAdmin
 import com.backend.model.GameModel
 import com.backend.plugins.*
 import io.ktor.server.application.*
@@ -12,6 +11,7 @@ fun main(args: Array<String>) {
 
 @Suppress("unused")
 fun Application.module() {
+    FirebaseAdmin.init()
     val gameModel = GameModel()
     configureSockets()
     configureSerialization()
