@@ -356,6 +356,7 @@ class Game(private val firestoreRef: CollectionReference) {
                 println("Player ${winner.username} won $splitPot chips. Total pot: $potAmount")
                 winner.playerState = PlayerState.WINNER
                 winner.assignChips(splitPot)
+                winner.playerBet += splitPot
 
                 CoroutineScope(Dispatchers.IO).launch {
                     firestoreRef.document(winner.userId)
