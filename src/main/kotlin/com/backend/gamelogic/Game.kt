@@ -6,6 +6,8 @@ import com.backend.data.PlayerState
 import com.backend.data.PlayingCard
 import com.google.cloud.firestore.CollectionReference
 import com.google.cloud.firestore.FieldValue
+import io.grpc.LoadBalancerRegistry
+import io.grpc.internal.PickFirstLoadBalancerProvider
 import io.ktor.util.logging.KtorSimpleLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +36,10 @@ class Game(private val firestoreRef: CollectionReference) {
         const val TURN_CARD_INDEX = 4
         const val RIVER_CARD_INDEX = 5
         const val HAND_COMBINATION = 3
+    }
+
+    init {
+        LoadBalancerRegistry.getDefaultRegistry().register(PickFirstLoadBalancerProvider())
     }
 
     fun preflopRoundInit(): Boolean {

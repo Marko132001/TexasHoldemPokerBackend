@@ -12,6 +12,7 @@ object FirebaseAdmin {
 
     private val options: FirebaseOptions = FirebaseOptions.builder()
         .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+        .setDatabaseUrl("https://pokerapp-8f562.firebaseio.com")
         .build()
 
     fun init() {
