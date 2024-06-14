@@ -7,7 +7,7 @@ import java.io.FileInputStream
 import java.io.InputStream
 
 object FirebaseAdmin {
-    private val serviceAccount: FileInputStream = FileInputStream("/app/pokerapp-8f562-firebase-adminsdk-7n239-13a746135f.json")
+    private val serviceAccount: FileInputStream = FileInputStream("/etc/secrets/pokerapp-8f562-firebase-adminsdk-7n239-13a746135f.json")
 
     private val options: FirebaseOptions = FirebaseOptions.builder()
         .setCredentials(GoogleCredentials.fromStream(serviceAccount))
