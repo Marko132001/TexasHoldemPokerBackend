@@ -3,11 +3,13 @@ package com.backend.firebase
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
+import io.ktor.server.application.ApplicationEnvironment
+import io.ktor.server.engine.ApplicationEngineEnvironment
 import java.io.FileInputStream
 import java.io.InputStream
 
-object FirebaseAdmin {
-    private val serviceAccount: FileInputStream = FileInputStream("/etc/secrets/pokerapp-8f562-firebase-adminsdk-7n239-13a746135f.json")
+class FirebaseAdmin(private val firebaseSecretsPath: String?) {
+    private val serviceAccount: FileInputStream = FileInputStream(firebaseSecretsPath)
 
     private val options: FirebaseOptions = FirebaseOptions.builder()
         .setCredentials(GoogleCredentials.fromStream(serviceAccount))

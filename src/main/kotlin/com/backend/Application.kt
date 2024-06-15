@@ -11,7 +11,9 @@ fun main(args: Array<String>) {
 
 @Suppress("unused")
 fun Application.module() {
-    FirebaseAdmin.init()
+    val firebaseSecrets = environment.config.propertyOrNull("ktor.deployment.firebase_secrets_path")?.getString()
+    val firebaseAdmin = FirebaseAdmin(firebaseSecrets)
+    firebaseAdmin.init()
     val gameModel = GameModel()
     configureSockets()
     configureSerialization()
